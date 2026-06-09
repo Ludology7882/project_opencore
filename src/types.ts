@@ -45,7 +45,21 @@ export interface Monster {
   money: number;
 }
 
-export type ItemType = 'heal_hp' | 'heal_sp' | 'loot';
+export type ItemType =
+  | 'heal_hp'
+  | 'heal_sp'
+  | 'loot'
+  | 'wing_escape' // 蒼蠅之翼：逃離當前戰鬥
+  | 'wing_return'; // 蝴蝶之翼：回到存檔點
+
+export interface Skill {
+  skillId: string;
+  name: string;
+  job: string;
+  spCost: number;
+  powerPct: number; // 傷害倍率，180 = 攻擊力的 180%
+  reqLevel: number; // 習得所需等級
+}
 
 export interface Item {
   itemId: string;
@@ -68,6 +82,8 @@ export interface GameData {
   monsters: Map<string, Monster>;
   items: Map<string, Item>;
   dropsByMonster: Map<string, Drop[]>;
+  skills: Map<string, Skill>;
   // 以中文名稱反查 itemId，供 config 中以名稱指定道具
   itemIdByName: Map<string, string>;
+  skillIdByName: Map<string, string>;
 }

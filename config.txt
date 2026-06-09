@@ -1,36 +1,64 @@
 # ================================================
 #  外掛模擬器 設定檔 (config.txt)
-#  修改下列參數，存檔後重新執行 npm start，觀察日誌與結算效率。
+#  修改參數，存檔後重新執行 npm start，觀察日誌與結算效率。
 #  井字號 # 之後為註解。
 # ================================================
 
 # --- 練功地點 ---
-map B               # 在哪張圖練功：A 新手草原 / B 哥布林森林 / C 半獸人谷地
-saveMap A           # 存檔點（死亡後復活處），預設 A
+map B               # A 新手草原 / B 哥布林森林 / C 半獸人谷地
+saveMap A           # 存檔點（死亡復活處 / 蝴蝶之翼回去的地方）
 
 # --- 行為模式 ---
-attackMode 2        # 0 不攻擊 / 1 被動(被打才還手) / 2 主動攻擊
-itemsTakeAuto 1     # 0 不撿 / 1 脫離戰鬥才撿 / 2 看到就撿
-sellAuto 1          # 0 不賣戰利品 / 1 戰利品全部賣掉
+attackMode 2        # 0 不攻擊 / 1 被動 / 2 主動
+itemsTakeAuto 1     # 0 不撿 / 1 脫戰才撿 / 2 看到就撿
+sellAuto 1          # 0 不賣 / 1 戰利品全賣
 
-# --- 自動使用物品 ---
-# 格式：useSelf_item [物品名稱] { 條件 }
-# 條件可用 hp/sp，搭配 < 或 >，數字可加 % 表示佔最大值百分比。
-# 物品名稱留空 = 關閉該區塊。一個區塊只能一件物品。
+# --- 坐下休息（HP/SP 低於 lower% 就坐下回復，回到 upper% 起身）---
+# 坐著回復不花錢，但要花時間（犧牲練功效率）。
+sitAuto_hp_lower 30
+sitAuto_hp_upper 80
+sitAuto_sp_lower 15
+sitAuto_sp_upper 70
+
+# --- 緊急逃脫（HP/SP 低於 % 用蒼蠅之翼逃跑，需先備翼）---
+teleportAuto_hp 15
+teleportAuto_sp 0
+
+# --- 逐怪控制 mon_control [怪名|all] ---
+# attack: -1 完全不打 / 0 被動 / 1 主動
+# minHp/minSp: 自身百分比高於此才主動開打   minLevel: 等級夠才打   teleport: 1=看到就避開
+mon_control all {
+    attack 1
+}
+# 範例：等級到 5 再打哥布林；HP 沒過半不主動找
+mon_control 哥布林 {
+    attack 1
+    minLevel 1
+    minHp 40%
+}
+
+# --- 攻擊技能 attackSkillSlot [技能名] ---
+# SP 足夠且條件達成時改用技能（比平砍強但耗 SP）。
+attackSkillSlot 重斬 {
+    sp > 8
+}
+
+# --- 自動使用物品 useSelf_item [物品名] { 條件 } ---
 useSelf_item 補血藥水 {
     hp < 50%
 }
 
-useSelf_item 補魔藥水 {
-    sp < 20%
-}
-
-# --- 自動購買物品 ---
-# 格式：buyAuto [物品名稱] { npc 地圖, minAmount 下限, maxAmount 上限, disabled 0/1 }
-# 身上數量低於 minAmount 時，自動補貨到 maxAmount。disabled 1 可停用。
+# --- 自動購買 buyAuto [物品名] { npc 城鎮, minAmount, maxAmount, disabled } ---
+# 補貨要走回城鎮（花時間）；備蝴蝶之翼可省去程。
 buyAuto 補血藥水 {
     npc A
     minAmount 5
     maxAmount 20
+    disabled 0
+}
+buyAuto 蒼蠅之翼 {
+    npc A
+    minAmount 3
+    maxAmount 10
     disabled 0
 }

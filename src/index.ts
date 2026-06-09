@@ -110,6 +110,9 @@ async function main(): Promise<void> {
   console.log(`回合數        ：${stats.ticks}`);
   console.log(`擊殺數        ：${stats.kills}`);
   console.log(`死亡次數      ：${stats.deaths}`);
+  console.log(`逃跑次數      ：${stats.escapes}（用蒼蠅之翼）`);
+  console.log(`休息耗時      ：${stats.sitTicks}`);
+  console.log(`移動耗時      ：${stats.travelTicks}（補貨往返）`);
   console.log(`等級          ：LV${stats.startLevel} → LV${stats.endLevel}（目前 ${char.exp}/${char.level >= 10 ? '滿' : expToNext(char.level)} exp）`);
   console.log(`累計獲得經驗  ：${stats.expGained}`);
   console.log(`收入(打怪+賣) ：${stats.moneyEarned}z`);

@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { parseCsv } from './csv';
-import { GameData, Job, GameMap, Monster, Item, Drop, ItemType } from '../types';
+import { GameData, Job, GameMap, Monster, Item, Drop, ItemType, Skill } from '../types';
 
 const num = (v: string, def = 0): number => {
   const n = Number(v);
@@ -86,5 +86,20 @@ export function loadGameData(dataDir: string): GameData {
     dropsByMonster.set(d.monsterId, arr);
   }
 
-  return { jobs, maps, monsters, items, dropsByMonster, itemIdByName };
+  const skills = new Map<string, Skill>();
+  const skillIdByName = new Map<string, string>();
+  for (const r of read('skills.csv')) {
+    const skill: Skill = {
+      skillId: r.skillId,
+      name: r.name,
+      job: r.job,
+      spCost: num(r.spCost),
+      powerPct: num(r.powerPct, 100),
+      reqLevel: num(r.reqLevel, 1),
+    };
+    skills.set(skill.skillId, skill);
+    skillIdByName.set(skill.name, skill.skillId);
+  }
+
+  return { jobs, maps, monsters, items, dropsByMonster, skills, itemIdByName, skillIdByName };
 }

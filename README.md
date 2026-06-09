@@ -55,7 +55,7 @@ useSelf_item 補血藥水 {
 ```
 條件支援 `hp`/`sp`，搭配 `<`／`>`，數字可加 `%`（佔最大值百分比）或用絕對值。
 
-**自動購買物品** — 身上數量低於 `minAmount` 時補貨到 `maxAmount`：
+**自動購買物品** — 身上數量低於 `minAmount` 時補貨到 `maxAmount`（補貨需走回城鎮，花時間）：
 
 ```
 buyAuto 補血藥水 {
@@ -68,6 +68,50 @@ buyAuto 補血藥水 {
 
 ---
 
+## OpenKore 融合功能（v1.1）
+
+借用 OpenKore 的設定概念，加深「調 config 找最佳解」的策略（設計對照見 `docs/openkore-design.md`）。
+這些系統互相咬合：**技能**更強但耗 SP → SP 沒了要**坐下休息**(花時間)或喝魔water(花錢) → 危險時用**翼逃跑**(花錢) → **逐怪控制**決定只打划算又安全的怪。
+
+**坐下休息 sitAuto** — HP/SP 低於 `lower%` 就坐下回復，回到 `upper%` 起身（不花錢但花時間）：
+```
+sitAuto_hp_lower 30
+sitAuto_hp_upper 80
+sitAuto_sp_lower 15
+sitAuto_sp_upper 70
+```
+
+**緊急逃脫 teleportAuto** — HP/SP 低於 `%` 用蒼蠅之翼逃離戰鬥（需先備翼，避免死亡）：
+```
+teleportAuto_hp 15
+teleportAuto_sp 0
+```
+
+**逐怪控制 mon_control** — 逐隻怪設定打不打、門檻（`all` 為預設規則）：
+```
+mon_control 哥布林 {
+    attack 1        # -1 完全不打 / 0 被動 / 1 主動
+    minLevel 3      # 等級夠才打（跳過太強的怪）
+    minHp 40%       # 自身 HP% 夠才主動開打
+    teleport 0      # 1 = 看到就避開
+}
+```
+
+**攻擊技能 attackSkillSlot** — SP 足夠且條件達成時改用技能（比平砍強但耗 SP）：
+```
+attackSkillSlot 重斬 {
+    sp > 8           # 自身條件（可選）
+    monsters 哥布林   # 只對這些怪用（可選，空=全部）
+    notMonsters 波利  # 不對這些怪用（可選）
+}
+```
+技能定義在 `data/skills.csv`（技能ID、名稱、職業、SP消耗、傷害倍率%、習得等級）。
+
+> 💡 翼道具（蒼蠅之翼 / 蝴蝶之翼）為一般道具，用 `buyAuto` 補充即可。
+> 備蝴蝶之翼可在補貨時省去回城的去程時間。
+
+---
+
 ## 內容資料（Excel → CSV → 遊戲）
 
 依 GDD「資料與邏輯分離」原則，所有內容放在 `data/*.csv`，改數值**無須動程式碼**：
@@ -77,8 +121,9 @@ buyAuto 補血藥水 {
 | `data/jobs.csv` | 職業 | 初始 HP/SP/攻防、六大屬性、每級成長 |
 | `data/maps.csv` | 地圖 | 出沒怪物、連接地圖、是否城鎮 |
 | `data/monsters.csv` | 怪物 | HP/攻防/命中/迴避/經驗/金錢/等級 |
-| `data/items.csv` | 道具 | 類型(heal_hp/heal_sp/loot)、效果、買賣價 |
+| `data/items.csv` | 道具 | 類型(heal_hp/heal_sp/loot/wing_escape/wing_return)、效果、買賣價 |
 | `data/drops.csv` | 掉落表 | 怪物→道具 的掉落機率 |
+| `data/skills.csv` | 技能 | 技能ID、名稱、職業、SP消耗、傷害倍率%、習得等級 |
 
 > 維護流程：用 Excel 編輯（一工作表＝一類資料）→ 匯出 CSV → 覆蓋 `data/` → 重新執行。
 

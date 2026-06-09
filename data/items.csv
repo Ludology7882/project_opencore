@@ -1,6 +1,8 @@
 itemId,name,type,effectValue,buyPrice,sellPrice
 hp_potion,補血藥水,heal_hp,50,10,4
 sp_potion,補魔藥水,heal_sp,30,12,5
+fly_wing,蒼蠅之翼,wing_escape,0,8,1
+butterfly_wing,蝴蝶之翼,wing_return,0,30,3
 apple_jelly,蘋果果凍,loot,0,0,8
 fluff,棉絮,loot,0,0,6
 wool,羊毛,loot,0,0,15
