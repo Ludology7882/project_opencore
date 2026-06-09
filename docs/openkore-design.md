@@ -160,3 +160,68 @@
 
 **也許做成特色**
 9. ⚪ 夥伴系統（homunculus/pet 改成放置夥伴）
+
+---
+
+## 附錄一：OpenKore 全部控制檔（control/）對照
+
+實際 clone 下來確認，OpenKore 用「一檔一類」的方式拆分設定，與你 GDD 的資料表精神一致。
+
+| 控制檔 | 作用 | 建議 |
+|---|---|---|
+| `config.txt` | 主設定（攻擊/技能/道具/移動…全部開關） | 🟢 對應我們的 `config.txt` |
+| `mon_control.txt` | 逐怪行為（打/避/逃/門檻） | 🔵 建議新增 |
+| `items_control.txt` | 逐項道具（留/賣/存數量） | 🔵 建議新增 |
+| `pickupitems.txt` | 逐項撿取旗標（-1丟/0不撿/1撿/2快撿） | 🔵 建議新增（比現在 0/1/2 全域更細） |
+| `priority.txt` | **打怪優先序**（被圍時先打誰） | 🔵 建議新增（純策略，零美術成本） |
+| `routeweights.txt` | 地圖路徑權重（避開/偏好某圖） | ⚪ 觀望（需移動系統） |
+| `timeouts.txt` | 各種行動間隔/延遲（手速） | 🟡 可借：抽象成「行動速度」 |
+| `shop.txt` / `buyer_shop.txt` | 開店擺攤買賣 | 🔴 刪除（多人經濟） |
+| `chat_resp.txt` / `responses.txt` | 自動聊天回覆 | 🔴 刪除 |
+| `avoid.txt` | 躲避特定玩家/GM | 🔴 刪除 |
+| `overallAuth.txt` | 遠端指令授權 | 🔴 刪除 |
+| `arrowcraft.txt` | 製箭清單 | ⚪ 觀望（製作系統） |
+| `consolecolors.txt` | 主控台顏色 | 🟢 已有（我們日誌分色） |
+| `sys.txt` | 系統/外掛載入設定 | 🔴 刪除 |
+| `poseidon.txt` | 反外掛驗證伺服器 | 🔴 刪除 |
+
+## 附錄二：高價值功能的真實語法（供我們設計參考）
+
+**坐下休息（範圍觸發）**
+```
+sitAuto_hp_lower 40      # HP 低於 40% 坐下
+sitAuto_hp_upper 100     # 回到 100% 才站起
+sitAuto_sp_lower 0
+sitAuto_idle 1           # 閒置就坐
+```
+
+**自動逃脫（多種觸發）**
+```
+teleportAuto_hp 10       # HP<10% 瞬移逃
+teleportAuto_maxDmg 500  # 單次受創>500 就逃
+teleportAuto_deadly 1    # 預判致命傷就逃
+teleportAuto_atkMiss 10  # 連續 miss 10 次就逃（打不到的怪）
+```
+
+**攻擊技能槽（條件式施放）**— attackSkillSlot 區塊重點欄位
+```
+attackSkillSlot 技能名 {
+    lvl 10            # 用幾級
+    sp > 30           # SP 條件
+    hp                # HP 條件
+    maxUses 0         # 最多用幾次
+    monsters 哥布林    # 只對哪些怪用
+    notMonsters 波利   # 不對哪些怪用
+}
+```
+
+**撿物旗標（pickupitems.txt）**
+```
+all 1            # 預設全撿
+補血藥水 2        # 看到就立刻撿
+棉絮 0           # 不撿（垃圾）
+```
+
+> 共通設計：OpenKore 的「區塊 + 條件」語法（`{ hp < x, sp > y, monsters ... }`）
+> 是它深度的來源。我們已在 `useSelf_item` 用了同套語法，未來技能/逃脫/坐下
+> 都可沿用，玩家學一套語法就能設定全部行為。
