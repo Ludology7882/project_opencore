@@ -1,0 +1,4 @@
+mapId,name,monsters,connections,isTown
+A,新手草原,poring;sheep,B,1
+B,哥布林森林,mushroom;goblin,A;C,0
+C,半獸人谷地,orc_archer;orc,B,0

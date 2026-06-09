@@ -1,0 +1,10 @@
+itemId,name,type,effectValue,buyPrice,sellPrice
+hp_potion,補血藥水,heal_hp,50,10,4
+sp_potion,補魔藥水,heal_sp,30,12,5
+apple_jelly,蘋果果凍,loot,0,0,8
+fluff,棉絮,loot,0,0,6
+wool,羊毛,loot,0,0,15
+mushroom_spore,蘑菇孢子,loot,0,0,12
+goblin_tooth,哥布林之牙,loot,0,0,25
+arrow_bundle,獸人之箭,loot,0,0,30
+orc_tusk,獸牙,loot,0,0,40

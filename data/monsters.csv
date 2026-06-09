@@ -1,0 +1,7 @@
+monsterId,name,level,hp,atk,def,hit,flee,exp,money
+poring,波利,1,30,6,1,80,5,2,3
+sheep,綿羊,2,50,9,2,82,8,3,5
+mushroom,蘑菇怪,3,80,13,4,85,10,5,8
+goblin,哥布林,4,120,18,6,88,14,8,14
+orc_archer,獸人弓手,6,180,26,8,92,18,14,24
+orc,半獸人,7,260,34,12,95,16,21,38

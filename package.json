@@ -1,0 +1,20 @@
+{
+  "name": "plugin-simulator",
+  "version": "1.0.0",
+  "description": "外掛模擬器 — 以 MMORPG 外掛(如 OpenKore)為介面的文字冒險/掛機模擬遊戲",
+  "license": "MIT",
+  "type": "commonjs",
+  "main": "dist/index.js",
+  "bin": {
+    "plugin-sim": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "npm run build && node dist/index.js",
+    "play": "npm run build && node dist/index.js --delay 40"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.2",
+    "typescript": "^5.9.3"
+  }
+}

@@ -1,0 +1,13 @@
+monsterId,itemId,rate
+poring,apple_jelly,0.5
+poring,hp_potion,0.05
+sheep,fluff,0.6
+sheep,wool,0.25
+mushroom,mushroom_spore,0.55
+mushroom,hp_potion,0.08
+goblin,goblin_tooth,0.4
+goblin,sp_potion,0.1
+orc_archer,arrow_bundle,0.45
+orc_archer,hp_potion,0.12
+orc,orc_tusk,0.35
+orc,hp_potion,0.15
