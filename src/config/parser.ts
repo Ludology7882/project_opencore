@@ -82,42 +82,51 @@ export function parseConfig(text: string): GameConfig {
     let line = rawLines[i].replace(/#.*$/, '').trim();
     if (!line) continue;
 
-    // 區塊指令
-    const blockMatch = line.match(/^(useSelf_item|buyAuto)\s*(.*?)\s*\{?\s*$/i);
-    if (blockMatch && /^(useSelf_item|buyAuto)$/i.test(blockMatch[1])) {
+    // 區塊指令：useSelf_item / buyAuto，後接 { ... }
+    // 支援單行 `... { a, b }`、多行區塊、以及逗號或換行分隔的欄位。
+    const blockMatch = line.match(/^(useSelf_item|buyAuto)\b\s*([^{]*)(\{?.*)$/i);
+    if (blockMatch) {
       const directive = blockMatch[1].toLowerCase();
       const itemName = blockMatch[2].trim();
-
-      // 蒐集區塊內容直到對應的 }
       const startLine = i + 1;
-      const body: string[] = [];
-      let closed = line.includes('{') ? false : null as unknown as boolean;
-      // 若本行未含 '{'，下一行必須是 '{' 或內容；採寬鬆處理：尋找 '{' 後開始
-      let started = line.includes('{');
-      for (i++; i < rawLines.length; i++) {
-        let inner = rawLines[i].replace(/#.*$/, '').trim();
-        if (!started) {
-          if (inner.startsWith('{')) {
-            started = true;
-            inner = inner.slice(1).trim();
-            if (!inner) continue;
-          } else if (inner === '') {
-            continue;
-          } else {
-            throw new ConfigError(`第 ${startLine} 行的 ${directive} 區塊缺少 '{'`);
-          }
+
+      // 從第一個 '{' 之後，蒐集內容直到對應的 '}'（可跨行）
+      let buffer = '';
+      let opened = false;
+      let closed = false;
+      const consume = (text: string): boolean => {
+        let t = text;
+        if (!opened) {
+          const oi = t.indexOf('{');
+          if (oi === -1) return false; // 尚未遇到 '{'
+          opened = true;
+          t = t.slice(oi + 1);
         }
-        if (inner.includes('}')) {
-          const before = inner.slice(0, inner.indexOf('}')).trim();
-          if (before) body.push(before);
-          closed = true;
-          break;
+        const ci = t.indexOf('}');
+        if (ci === -1) {
+          buffer += t + '\n';
+          return false;
         }
-        if (inner) body.push(inner);
+        buffer += t.slice(0, ci);
+        return true;
+      };
+
+      closed = consume(blockMatch[3]);
+      while (!closed && ++i < rawLines.length) {
+        closed = consume(rawLines[i].replace(/#.*$/, ''));
+      }
+      if (!opened) {
+        throw new ConfigError(`第 ${startLine} 行的 ${directive} 區塊缺少 '{'`);
       }
       if (!closed) {
         throw new ConfigError(`第 ${startLine} 行的 ${directive} 區塊缺少結尾 '}'（括號必須成對）`);
       }
+
+      // 以換行或逗號切成各條敘述
+      const body = buffer
+        .split(/[\n,]/)
+        .map((s) => s.trim())
+        .filter(Boolean);
 
       // 物品名稱未填 → 關閉該區塊，略過
       if (!itemName) continue;
