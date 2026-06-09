@@ -2,13 +2,34 @@
 // 外掛模擬器 v1.0 — CLI 進入點
 import * as fs from 'fs';
 import * as path from 'path';
-import { loadGameData } from './data/loader';
+import { loadGameData } from './data/loader.node';
 import { parseConfig, ConfigError } from './config/parser';
 import { Character } from './game/character';
 import { Engine } from './game/engine';
-import { Logger } from './game/logger';
+import { Logger, LogChannel, LogSink } from './game/logger';
 import { Rng } from './util/rng';
 import { expToNext } from './game/stats';
+
+// CLI 輸出端：ANSI 顏色 + stdout
+const ANSI: Record<LogChannel, string> = {
+  system: '\x1b[90m',
+  move: '\x1b[36m',
+  combat: '\x1b[37m',
+  item: '\x1b[33m',
+  level: '\x1b[32m',
+  death: '\x1b[31m',
+  shop: '\x1b[35m',
+};
+const RESET = '\x1b[0m';
+
+function makeCliSink(useColor: boolean): LogSink {
+  const color = useColor && process.stdout.isTTY === true;
+  return (channel, message, tick) => {
+    const stamp = `[${String(tick).padStart(4, '0')}]`;
+    const line = color ? `${ANSI[channel]}${stamp} ${message}${RESET}` : `${stamp} ${message}`;
+    process.stdout.write(line + '\n');
+  };
+}
 
 interface CliArgs {
   config: string;
@@ -95,7 +116,7 @@ async function main(): Promise<void> {
 
   // 起始給予一些初始金錢，方便 buyAuto 測試
   const char = new Character(job, 1, 200);
-  const logger = new Logger(args.delay, !args.noColor);
+  const logger = new Logger(makeCliSink(!args.noColor), args.delay);
   const rng = new Rng(args.seed);
   const engine = new Engine(data, cfg, char, logger, rng);
 

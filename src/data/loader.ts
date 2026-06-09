@@ -1,5 +1,3 @@
-import * as fs from 'fs';
-import * as path from 'path';
 import { parseCsv } from './csv';
 import { GameData, Job, GameMap, Monster, Item, Drop, ItemType, Skill } from '../types';
 
@@ -8,12 +6,22 @@ const num = (v: string, def = 0): number => {
   return Number.isFinite(n) ? n : def;
 };
 
-export function loadGameData(dataDir: string): GameData {
-  const read = (file: string) =>
-    parseCsv(fs.readFileSync(path.join(dataDir, file), 'utf8'));
+// 各資料表的原始 CSV 文字（供瀏覽器內嵌使用）
+export interface RawCsvData {
+  jobs: string;
+  maps: string;
+  monsters: string;
+  items: string;
+  drops: string;
+  skills: string;
+}
+
+// 從原始 CSV 文字建立遊戲資料（平台無關，CLI 與網頁共用，不依賴 Node API）
+export function buildGameData(raw: RawCsvData): GameData {
+  const read = (text: string) => parseCsv(text);
 
   const jobs = new Map<string, Job>();
-  for (const r of read('jobs.csv')) {
+  for (const r of read(raw.jobs)) {
     jobs.set(r.jobId, {
       jobId: r.jobId,
       name: r.name,
@@ -37,7 +45,7 @@ export function loadGameData(dataDir: string): GameData {
   }
 
   const maps = new Map<string, GameMap>();
-  for (const r of read('maps.csv')) {
+  for (const r of read(raw.maps)) {
     maps.set(r.mapId, {
       mapId: r.mapId,
       name: r.name,
@@ -48,7 +56,7 @@ export function loadGameData(dataDir: string): GameData {
   }
 
   const monsters = new Map<string, Monster>();
-  for (const r of read('monsters.csv')) {
+  for (const r of read(raw.monsters)) {
     monsters.set(r.monsterId, {
       monsterId: r.monsterId,
       name: r.name,
@@ -65,7 +73,7 @@ export function loadGameData(dataDir: string): GameData {
 
   const items = new Map<string, Item>();
   const itemIdByName = new Map<string, string>();
-  for (const r of read('items.csv')) {
+  for (const r of read(raw.items)) {
     const item: Item = {
       itemId: r.itemId,
       name: r.name,
@@ -79,7 +87,7 @@ export function loadGameData(dataDir: string): GameData {
   }
 
   const dropsByMonster = new Map<string, Drop[]>();
-  for (const r of read('drops.csv')) {
+  for (const r of read(raw.drops)) {
     const d: Drop = { monsterId: r.monsterId, itemId: r.itemId, rate: num(r.rate) };
     const arr = dropsByMonster.get(d.monsterId) ?? [];
     arr.push(d);
@@ -88,7 +96,7 @@ export function loadGameData(dataDir: string): GameData {
 
   const skills = new Map<string, Skill>();
   const skillIdByName = new Map<string, string>();
-  for (const r of read('skills.csv')) {
+  for (const r of read(raw.skills)) {
     const skill: Skill = {
       skillId: r.skillId,
       name: r.name,

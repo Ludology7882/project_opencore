@@ -4,11 +4,33 @@
 你**不直接控制角色**，而是透過編輯設定檔 `config.txt` 讓角色自動練功、補血、撿物、買賣，
 然後觀看滾動日誌、比較結算效率，找出最有效率的練功與賺錢組合。
 
-> 本專案為依據《外掛模擬器 GDD v1》製作的可執行原型（v1.0 範圍）。
+> 本專案為依據《外掛模擬器 GDD v1》製作的可執行原型。
+
+提供兩種玩法：
+- **🌐 網頁版**（複古終端機風，瀏覽器點開即玩、右側即時改 config）→ 見下方「網頁版」
+- **⌨️ 終端機版**（CLI）→ 見「快速開始」
 
 ---
 
-## 快速開始
+## 🌐 網頁版（推薦，也是 itch.io 上架形式）
+
+`web/` 資料夾即完整網頁遊戲（左側掛機日誌、右側 config 編輯、即時調整重跑）。
+
+**直接玩**：用瀏覽器打開 `web/index.html` 即可（資料已內嵌，雙擊也能跑，免架伺服器）。
+
+**修改內容後重新打包**（改了 `data/*.csv`、`config.txt` 或程式時）：
+```bash
+npm install        # 第一次需要
+npm run build:web  # 產生 web/main.js
+```
+
+**上架 itch.io**：把 `web/` 資料夾（`index.html` + `main.js` + `style.css`）壓成 zip，
+在 itch.io 新增專案 → Kind of project 選 **HTML** → 上傳 zip → 勾選
+**「This file will be played in the browser」** → 把 `index.html` 設為主檔即可。
+
+---
+
+## 快速開始（終端機版）
 
 需要 Node.js 18+（開發以 Node 22 測試）。
 

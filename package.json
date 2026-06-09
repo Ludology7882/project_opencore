@@ -11,10 +11,13 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "start": "npm run build && node dist/index.js",
-    "play": "npm run build && node dist/index.js --delay 40"
+    "play": "npm run build && node dist/index.js --delay 40",
+    "build:web": "esbuild src/web/main.ts --bundle --outfile=web/main.js --format=iife --loader:.csv=text --loader:.txt=text --platform=browser",
+    "web": "npm run build:web && echo 用瀏覽器開啟 web/index.html 即可遊玩"
   },
   "devDependencies": {
     "@types/node": "^25.9.2",
+    "esbuild": "^0.28.0",
     "typescript": "^5.9.3"
   }
 }
