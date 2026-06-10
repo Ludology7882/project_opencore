@@ -8,34 +8,35 @@
 </head>
 <body>
   <header>
-    <span class="prompt">C:\OpenCore&gt;</span> 外掛模擬器 <span class="ver">v1.1</span>
-    <span class="blurb">— 你不操作角色，你撰寫設定檔讓它自動掛機。調 config，找出最有效率的練功路徑。</span>
+    <span class="prompt">C:\OpenCore&gt;</span> 外掛模擬器 <span class="ver">v1.2</span>
+    <span class="blurb">— 即時掛機：訊息逐條冒出。練強了就改 config 按「套用」，中途切去高等地圖。</span>
   </header>
 
   <main>
     <!-- 左：掛機日誌 -->
     <section class="pane log-pane">
-      <div class="pane-title">// 掛機日誌</div>
+      <div class="pane-title">// 掛機日誌（即時滾動）</div>
       <div id="log" class="log"></div>
-      <div id="summary" class="summary"></div>
+      <div id="status" class="summary">待機中 — 按「開始掛機」啟動</div>
     </section>
 
     <!-- 右：config 編輯 -->
     <section class="pane cfg-pane">
-      <div class="pane-title">// config.txt（直接編輯）</div>
+      <div class="pane-title">// config.txt（編輯後按「套用設定」即時生效，角色狀態保留）</div>
       <textarea id="config" spellcheck="false"></textarea>
       <div class="controls">
         <label>職業 <select id="job"></select></label>
-        <label>回合 <input id="ticks" type="number" value="120" min="1" max="2000" /></label>
         <label>種子 <input id="seed" type="number" value="1" /></label>
         <label>速度
           <select id="speed">
-            <option value="0">即時</option>
-            <option value="12">慢速滾動</option>
-            <option value="35">超慢</option>
+            <option value="8">快</option>
+            <option value="20" selected>中</option>
+            <option value="50">慢</option>
           </select>
         </label>
         <button id="run">▶ 開始掛機</button>
+        <button id="apply" class="secondary">套用設定</button>
+        <button id="reset" class="secondary">重置(LV1)</button>
       </div>
     </section>
   </main>

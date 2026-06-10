@@ -23,6 +23,11 @@ export class Logger {
     this.tick = t;
   }
 
+  // 即時調整每行延遲（網頁版速度控制用）
+  setDelay(ms: number): void {
+    this.delayMs = ms;
+  }
+
   async log(channel: LogChannel, message: string): Promise<void> {
     this.sink(channel, message, this.tick);
     if (this.delayMs > 0) await sleep(this.delayMs);

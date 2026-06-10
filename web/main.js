@@ -576,6 +576,8 @@
       Engine = class {
         constructor(data, cfg, char, log, rng) {
           this.adjacency = /* @__PURE__ */ new Map();
+          this.time = 0;
+          this.started = false;
           this.data = data;
           this.cfg = cfg;
           this.char = char;
@@ -650,50 +652,99 @@
           const threshold = c.isPercent ? c.value / 100 * max : c.value;
           return c.op === "<" ? cur < threshold : cur > threshold;
         }
-        async run(maxTicks) {
-          const map = this.data.maps.get(this.cfg.map);
+        mapName(id) {
+          return this.data.maps.get(id)?.name ?? id;
+        }
+        // 開場（只執行一次）：印出起始狀態並移動到練功地圖
+        async begin() {
+          if (this.started) return;
+          this.started = true;
           await this.log.log("system", `===== \u5916\u639B\u6A21\u64EC\u5668 \u555F\u52D5 =====`);
           await this.log.log(
             "system",
             `\u89D2\u8272\uFF1A${this.char.job.name}  LV${this.char.level}  HP${this.char.hp}/${this.char.derived.maxHp}  SP${this.char.sp}/${this.char.derived.maxSp}  \u6240\u6301\u91D1 ${this.char.money}z`
           );
+          const map = this.data.maps.get(this.cfg.map);
           if (!map) {
             await this.log.log("death", `\u8A2D\u5B9A\u932F\u8AA4\uFF1A\u627E\u4E0D\u5230\u5730\u5716\u300C${this.cfg.map}\u300D`);
-            return this.finish();
+            return;
           }
           await this.log.log("move", `\u79FB\u52D5\u5230\u7DF4\u529F\u5730\u5716\uFF1A${map.name}(${map.mapId})  \u653B\u64CA\u6A21\u5F0F ${this.cfg.attackMode}`);
-          let time = 0;
-          while (time < maxTicks) {
-            if (this.char.level >= MAX_LEVEL) {
-              await this.log.log("level", `\u5DF2\u9054\u6700\u9AD8\u7B49\u7D1A LV${MAX_LEVEL}\uFF0C\u505C\u6B62\u7DF4\u529F\u3002`);
-              break;
-            }
-            this.stats.ticks = time;
-            this.log.setTick(time + 1);
-            const travel = await this.maybeRestock(maxTicks - time);
-            time += travel;
-            if (time >= maxTicks) break;
-            const sat = await this.maybeSit(maxTicks - time);
-            time += sat;
-            if (time >= maxTicks) break;
-            if (this.cfg.attackMode === 0 || map.monsters.length === 0) {
-              await this.log.log("system", `\u5F85\u6A5F\u4E2D\u2026\uFF08attackMode 0 \u6216\u672C\u5716\u7121\u602A\uFF09`);
-              this.regen();
-              time++;
-              continue;
-            }
-            const mon = this.chooseMonster(map.monsters);
-            if (!mon) {
-              await this.log.log("system", `\u6C92\u6709\u7B26\u5408\u689D\u4EF6\u53EF\u6253\u7684\u602A\uFF08mon_control \u904E\u6FFE\uFF09\uFF0C\u5F85\u6A5F\u56DE\u5FA9\u3002`);
-              this.regen();
-              time++;
-              continue;
-            }
-            await this.fight(mon);
-            time++;
-            this.regen();
+        }
+        // 即時套用新設定（角色狀態保留，可中途換圖／改策略）
+        async applyConfig(cfg) {
+          const oldMap = this.cfg.map;
+          this.cfg = cfg;
+          if (cfg.map !== oldMap) {
+            this.currentMap = cfg.map;
+            await this.log.log("move", `\u2605 \u5957\u7528\u65B0\u8A2D\u5B9A\uFF1A\u6539\u5F80 ${this.mapName(cfg.map)}(${cfg.map}) \u7DF4\u529F`);
+          } else {
+            await this.log.log("system", `\u2605 \u5DF2\u5957\u7528\u65B0\u8A2D\u5B9A`);
           }
-          this.stats.ticks = Math.min(time, maxTicks);
+        }
+        // 推進一個時間單位的決策循環（補貨 → 休息 → 戰鬥/待機）。
+        // remaining 用於限制休息/移動不超過剩餘時間（即時模式給很大值）。
+        async tick(remaining = Number.MAX_SAFE_INTEGER) {
+          const map = this.data.maps.get(this.cfg.map);
+          this.log.setTick(this.time + 1);
+          if (!map) {
+            await this.log.log("death", `\u8A2D\u5B9A\u932F\u8AA4\uFF1A\u627E\u4E0D\u5230\u5730\u5716\u300C${this.cfg.map}\u300D\uFF0C\u5F85\u6A5F\u4E2D\u3002`);
+            this.time++;
+            return;
+          }
+          const travel = await this.maybeRestock(remaining);
+          this.time += travel;
+          if (travel >= remaining) return;
+          const sat = await this.maybeSit(remaining - travel);
+          this.time += sat;
+          if (travel + sat >= remaining) return;
+          if (this.cfg.attackMode === 0 || map.monsters.length === 0) {
+            await this.log.log("system", `\u5F85\u6A5F\u4E2D\u2026\uFF08attackMode 0 \u6216\u672C\u5716\u7121\u602A\uFF09`);
+            this.regen();
+            this.time++;
+            return;
+          }
+          const mon = this.chooseMonster(map.monsters);
+          if (!mon) {
+            await this.log.log("system", `\u6C92\u6709\u7B26\u5408\u689D\u4EF6\u53EF\u6253\u7684\u602A\uFF08mon_control \u904E\u6FFE\uFF09\uFF0C\u5F85\u6A5F\u56DE\u5FA9\u3002`);
+            this.regen();
+            this.time++;
+            return;
+          }
+          await this.fight(mon);
+          this.time++;
+          this.regen();
+        }
+        // 目前狀態快照（供即時 UI 顯示）
+        getState() {
+          return {
+            level: this.char.level,
+            maxLevel: this.char.level >= MAX_LEVEL,
+            exp: this.char.exp,
+            expNext: this.char.level >= MAX_LEVEL ? 0 : expToNext(this.char.level),
+            hp: this.char.hp,
+            maxHp: this.char.derived.maxHp,
+            sp: this.char.sp,
+            maxSp: this.char.derived.maxSp,
+            money: this.char.money,
+            map: this.cfg.map,
+            mapName: this.mapName(this.cfg.map),
+            time: this.time,
+            stats: { ...this.stats, endMoney: this.char.money, endLevel: this.char.level }
+          };
+        }
+        // CLI：跑固定回合數後回傳結算（達最高等級即停）
+        async run(maxTicks) {
+          await this.begin();
+          if (!this.data.maps.get(this.cfg.map)) return this.finish();
+          while (this.time < maxTicks && this.char.level < MAX_LEVEL) {
+            await this.tick(maxTicks - this.time);
+          }
+          if (this.char.level >= MAX_LEVEL) {
+            this.log.setTick(this.time);
+            await this.log.log("level", `\u5DF2\u9054\u6700\u9AD8\u7B49\u7D1A LV${MAX_LEVEL}\uFF0C\u505C\u6B62\u7DF4\u529F\u3002`);
+          }
+          this.stats.ticks = Math.min(this.time, maxTicks);
           return this.finish();
         }
         // 站立時的微量自然回復
@@ -734,9 +785,10 @@
           const sitSp = Math.max(this.char.derived.spRegen * 2, Math.ceil(this.char.derived.maxSp * 0.12));
           await this.log.log("system", `\u5750\u4E0B\u4F11\u606F\u2026\uFF08HP ${this.char.hp}/${this.char.derived.maxHp} SP ${this.char.sp}/${this.char.derived.maxSp}\uFF09`);
           let rounds = 0;
-          while (rounds < remaining) {
-            const hpDone = s.hpLower <= 0 || this.hpPct() >= s.hpUpper;
-            const spDone = s.spLower <= 0 || this.spPct() >= s.spUpper;
+          const cap = Math.min(remaining, 2e3);
+          while (rounds < cap) {
+            const hpDone = s.hpLower <= 0 || this.char.hp >= this.char.derived.maxHp || this.hpPct() >= s.hpUpper;
+            const spDone = s.spLower <= 0 || this.char.sp >= this.char.derived.maxSp || this.spPct() >= s.spUpper;
             if (hpDone && spDone) break;
             this.char.hp = Math.min(this.char.derived.maxHp, this.char.hp + sitHp);
             this.char.sp = Math.min(this.char.derived.maxSp, this.char.sp + sitSp);
@@ -1010,6 +1062,10 @@
         setTick(t) {
           this.tick = t;
         }
+        // 即時調整每行延遲（網頁版速度控制用）
+        setDelay(ms) {
+          this.delayMs = ms;
+        }
         async log(channel, message) {
           this.sink(channel, message, this.tick);
           if (this.delayMs > 0) await sleep(this.delayMs);
@@ -1115,7 +1171,6 @@
       init_engine();
       init_logger();
       init_rng();
-      init_stats();
       init_jobs();
       init_maps();
       init_monsters();
@@ -1135,11 +1190,13 @@
       var logEl = $("log");
       var cfgEl = $("config");
       var runBtn = $("run");
-      var ticksEl = $("ticks");
+      var applyBtn = $("apply");
+      var resetBtn = $("reset");
       var seedEl = $("seed");
       var speedEl = $("speed");
       var jobEl = $("job");
-      var summaryEl = $("summary");
+      var statusEl = $("status");
+      var sleep2 = (ms) => new Promise((r) => setTimeout(r, ms));
       cfgEl.value = config_default;
       for (const job of data.jobs.values()) {
         const opt = document.createElement("option");
@@ -1147,63 +1204,101 @@
         opt.textContent = job.name;
         jobEl.appendChild(opt);
       }
+      var engine = null;
+      var curLogger = null;
       var running = false;
+      var stopFlag = false;
+      var gen = 0;
       function appendLine(channel, message, tick) {
         const div = document.createElement("div");
         div.className = "line " + channel;
         div.textContent = `[${String(tick).padStart(4, "0")}] ${message}`;
         logEl.appendChild(div);
+        while (logEl.childElementCount > 800) logEl.removeChild(logEl.firstChild);
         logEl.scrollTop = logEl.scrollHeight;
+        if (engine) updateStatus();
       }
-      async function run() {
-        if (running) return;
-        running = true;
-        runBtn.disabled = true;
-        runBtn.textContent = "\u639B\u6A5F\u4E2D\u2026";
-        logEl.innerHTML = "";
-        summaryEl.innerHTML = "";
+      function initGame() {
         let cfg;
         try {
           cfg = parseConfig(cfgEl.value);
         } catch (e) {
           appendLine("death", "config \u89E3\u6790\u5931\u6557\uFF1A" + (e instanceof Error ? e.message : String(e)), 0);
-          finishRun();
-          return;
+          return false;
         }
         const job = data.jobs.get(jobEl.value) ?? data.jobs.values().next().value;
         if (!job) {
           appendLine("death", "\u627E\u4E0D\u5230\u8077\u696D\u8CC7\u6599", 0);
-          finishRun();
+          return false;
+        }
+        const char = new Character(job, 1, 200);
+        curLogger = new Logger(appendLine, Number(speedEl.value) || 0);
+        engine = new Engine(data, cfg, char, curLogger, new Rng(Number(seedEl.value) || 1));
+        return true;
+      }
+      async function loop() {
+        if (running) return;
+        if (!engine && !initGame()) return;
+        running = true;
+        stopFlag = false;
+        const myGen = gen;
+        refreshButtons();
+        await engine.begin();
+        while (!stopFlag && myGen === gen) {
+          await engine.tick();
+          updateStatus();
+          await sleep2(0);
+        }
+        running = false;
+        refreshButtons();
+      }
+      function pause() {
+        stopFlag = true;
+      }
+      async function applyConfig() {
+        let cfg;
+        try {
+          cfg = parseConfig(cfgEl.value);
+        } catch (e) {
+          appendLine("death", "config \u89E3\u6790\u5931\u6557\uFF1A" + (e instanceof Error ? e.message : String(e)), 0);
           return;
         }
-        const ticks = Math.max(1, Number(ticksEl.value) || 80);
-        const seed = Number(seedEl.value) || 1;
-        const delay = Number(speedEl.value) || 0;
-        const char = new Character(job, 1, 200);
-        const logger = new Logger(appendLine, delay);
-        const rng = new Rng(seed);
-        const engine = new Engine(data, cfg, char, logger, rng);
-        try {
-          const stats = await engine.run(ticks);
-          renderSummary(stats, char);
-        } catch (e) {
-          appendLine("death", "\u57F7\u884C\u932F\u8AA4\uFF1A" + (e instanceof Error ? e.message : String(e)), 0);
+        if (!engine) {
+          initGame();
+          updateStatus();
+          return;
         }
-        finishRun();
+        await engine.applyConfig(cfg);
+        updateStatus();
       }
-      function finishRun() {
+      function reset() {
+        gen++;
+        stopFlag = true;
         running = false;
-        runBtn.disabled = false;
-        runBtn.textContent = "\u25B6 \u958B\u59CB\u639B\u6A5F";
+        engine = null;
+        curLogger = null;
+        logEl.innerHTML = "";
+        statusEl.innerHTML = "\u5F85\u6A5F\u4E2D \u2014 \u6309\u300C\u958B\u59CB\u639B\u6A5F\u300D\u555F\u52D5";
+        if (initGame()) updateStatus();
+        refreshButtons();
       }
-      function renderSummary(stats, char) {
-        const net = stats.endMoney - stats.startMoney;
-        const expPerTick = stats.ticks ? (stats.expGained / stats.ticks).toFixed(2) : "0";
-        const moneyPerTick = stats.ticks ? (net / stats.ticks).toFixed(2) : "0";
-        const expNow = char.level >= 10 ? "\u6EFF" : String(expToNext(char.level));
-        summaryEl.innerHTML = `<b>\u639B\u6A5F\u7D50\u7B97</b>\u3000\u56DE\u5408 ${stats.ticks}\uFF5C\u64CA\u6BBA ${stats.kills}\uFF5C\u6B7B\u4EA1 ${stats.deaths}\uFF5C\u9003\u8DD1 ${stats.escapes}<br>\u4F11\u606F\u8017\u6642 ${stats.sitTicks}\uFF5C\u79FB\u52D5\u8017\u6642 ${stats.travelTicks}\uFF5CLV ${stats.startLevel}\u2192${stats.endLevel}\uFF08exp ${char.exp}/${expNow}\uFF09<br>\u6536\u5165 ${stats.moneyEarned}z\uFF5C\u652F\u51FA ${stats.moneySpent}z\uFF5C\u6240\u6301\u91D1 ${stats.startMoney}\u2192${stats.endMoney}z\uFF08\u6DE8 ${net >= 0 ? "+" : ""}${net}z\uFF09<br><span class="hi">\u6548\u7387\uFF1A\u7D93\u9A57/\u56DE\u5408 ${expPerTick}\u3000\u6DE8\u91D1\u9322/\u56DE\u5408 ${moneyPerTick}z</span>`;
+      function refreshButtons() {
+        runBtn.textContent = running ? "\u23F8 \u66AB\u505C" : engine && engine.getState().time > 0 ? "\u25B6 \u7E7C\u7E8C" : "\u25B6 \u958B\u59CB\u639B\u6A5F";
       }
-      runBtn.addEventListener("click", run);
+      function updateStatus() {
+        if (!engine) return;
+        const s = engine.getState();
+        const net = s.stats.endMoney - s.stats.startMoney;
+        const expPerTick = s.time ? (s.stats.expGained / s.time).toFixed(2) : "0";
+        const moneyPerTick = s.time ? (net / s.time).toFixed(2) : "0";
+        const lvTxt = s.maxLevel ? `LV${s.level}\uFF08\u6EFF\u7D1A\u30FB\u7E8C\u8CFA\uFF09` : `LV${s.level}\uFF08${s.exp}/${s.expNext}\uFF09`;
+        statusEl.innerHTML = `<b>${lvTxt}</b>\u3000HP ${s.hp}/${s.maxHp}\u3000SP ${s.sp}/${s.maxSp}\u3000\u6240\u6301\u91D1 ${s.money}z\u3000@${s.mapName}<br>\u56DE\u5408 ${s.time}\uFF5C\u64CA\u6BBA ${s.stats.kills}\uFF5C\u6B7B\u4EA1 ${s.stats.deaths}\uFF5C\u9003\u8DD1 ${s.stats.escapes}\uFF5C\u4F11\u606F ${s.stats.sitTicks}\uFF5C\u79FB\u52D5 ${s.stats.travelTicks}\u3000<span class="hi">\u7D93\u9A57/\u56DE\u5408 ${expPerTick}\u3000\u6DE8\u91D1\u9322/\u56DE\u5408 ${moneyPerTick}z</span>`;
+      }
+      runBtn.addEventListener("click", () => running ? pause() : loop());
+      applyBtn.addEventListener("click", applyConfig);
+      resetBtn.addEventListener("click", reset);
+      speedEl.addEventListener("change", () => curLogger?.setDelay(Number(speedEl.value) || 0));
+      reset();
     }
   });
   require_main();

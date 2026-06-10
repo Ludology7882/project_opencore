@@ -40,6 +40,8 @@ export class Engine {
   private rng: Rng;
   private currentMap: string;
   private adjacency: Map<string, Set<string>> = new Map();
+  private time = 0;
+  private started = false;
 
   private stats: RunStats;
 
@@ -124,62 +126,114 @@ export class Engine {
     return c.op === '<' ? cur < threshold : cur > threshold;
   }
 
-  async run(maxTicks: number): Promise<RunStats> {
-    const map = this.data.maps.get(this.cfg.map);
+  private mapName(id: string): string {
+    return this.data.maps.get(id)?.name ?? id;
+  }
+
+  // 開場（只執行一次）：印出起始狀態並移動到練功地圖
+  async begin(): Promise<void> {
+    if (this.started) return;
+    this.started = true;
     await this.log.log('system', `===== 外掛模擬器 啟動 =====`);
     await this.log.log(
       'system',
       `角色：${this.char.job.name}  LV${this.char.level}  HP${this.char.hp}/${this.char.derived.maxHp}  SP${this.char.sp}/${this.char.derived.maxSp}  所持金 ${this.char.money}z`,
     );
+    const map = this.data.maps.get(this.cfg.map);
     if (!map) {
       await this.log.log('death', `設定錯誤：找不到地圖「${this.cfg.map}」`);
-      return this.finish();
+      return;
     }
     await this.log.log('move', `移動到練功地圖：${map.name}(${map.mapId})  攻擊模式 ${this.cfg.attackMode}`);
+  }
 
-    let time = 0;
-    while (time < maxTicks) {
-      if (this.char.level >= MAX_LEVEL) {
-        await this.log.log('level', `已達最高等級 LV${MAX_LEVEL}，停止練功。`);
-        break;
-      }
-      this.stats.ticks = time;
-      this.log.setTick(time + 1);
+  // 即時套用新設定（角色狀態保留，可中途換圖／改策略）
+  async applyConfig(cfg: GameConfig): Promise<void> {
+    const oldMap = this.cfg.map;
+    this.cfg = cfg;
+    if (cfg.map !== oldMap) {
+      this.currentMap = cfg.map;
+      await this.log.log('move', `★ 套用新設定：改往 ${this.mapName(cfg.map)}(${cfg.map}) 練功`);
+    } else {
+      await this.log.log('system', `★ 已套用新設定`);
+    }
+  }
 
-      // 1) 補貨（可能花費移動時間）
-      const travel = await this.maybeRestock(maxTicks - time);
-      time += travel;
-      if (time >= maxTicks) break;
-
-      // 2) 坐下休息（HP/SP 低於門檻 → 花時間回復）
-      const sat = await this.maybeSit(maxTicks - time);
-      time += sat;
-      if (time >= maxTicks) break;
-
-      // 3) 待機條件
-      if (this.cfg.attackMode === 0 || map.monsters.length === 0) {
-        await this.log.log('system', `待機中…（attackMode 0 或本圖無怪）`);
-        this.regen();
-        time++;
-        continue;
-      }
-
-      // 4) 依 mon_control 挑選可打的怪
-      const mon = this.chooseMonster(map.monsters);
-      if (!mon) {
-        await this.log.log('system', `沒有符合條件可打的怪（mon_control 過濾），待機回復。`);
-        this.regen();
-        time++;
-        continue;
-      }
-
-      // 5) 戰鬥（一場 = 1 時間單位）
-      await this.fight(mon);
-      time++;
-      this.regen();
+  // 推進一個時間單位的決策循環（補貨 → 休息 → 戰鬥/待機）。
+  // remaining 用於限制休息/移動不超過剩餘時間（即時模式給很大值）。
+  async tick(remaining: number = Number.MAX_SAFE_INTEGER): Promise<void> {
+    const map = this.data.maps.get(this.cfg.map);
+    this.log.setTick(this.time + 1);
+    if (!map) {
+      await this.log.log('death', `設定錯誤：找不到地圖「${this.cfg.map}」，待機中。`);
+      this.time++;
+      return;
     }
 
-    this.stats.ticks = Math.min(time, maxTicks);
+    // 1) 補貨（可能花費移動時間）
+    const travel = await this.maybeRestock(remaining);
+    this.time += travel;
+    if (travel >= remaining) return;
+
+    // 2) 坐下休息
+    const sat = await this.maybeSit(remaining - travel);
+    this.time += sat;
+    if (travel + sat >= remaining) return;
+
+    // 3) 待機條件
+    if (this.cfg.attackMode === 0 || map.monsters.length === 0) {
+      await this.log.log('system', `待機中…（attackMode 0 或本圖無怪）`);
+      this.regen();
+      this.time++;
+      return;
+    }
+
+    // 4) 依 mon_control 挑怪
+    const mon = this.chooseMonster(map.monsters);
+    if (!mon) {
+      await this.log.log('system', `沒有符合條件可打的怪（mon_control 過濾），待機回復。`);
+      this.regen();
+      this.time++;
+      return;
+    }
+
+    // 5) 戰鬥
+    await this.fight(mon);
+    this.time++;
+    this.regen();
+  }
+
+  // 目前狀態快照（供即時 UI 顯示）
+  getState() {
+    return {
+      level: this.char.level,
+      maxLevel: this.char.level >= MAX_LEVEL,
+      exp: this.char.exp,
+      expNext: this.char.level >= MAX_LEVEL ? 0 : expToNext(this.char.level),
+      hp: this.char.hp,
+      maxHp: this.char.derived.maxHp,
+      sp: this.char.sp,
+      maxSp: this.char.derived.maxSp,
+      money: this.char.money,
+      map: this.cfg.map,
+      mapName: this.mapName(this.cfg.map),
+      time: this.time,
+      stats: { ...this.stats, endMoney: this.char.money, endLevel: this.char.level },
+    };
+  }
+
+  // CLI：跑固定回合數後回傳結算（達最高等級即停）
+  async run(maxTicks: number): Promise<RunStats> {
+    await this.begin();
+    if (!this.data.maps.get(this.cfg.map)) return this.finish();
+    while (this.time < maxTicks && this.char.level < MAX_LEVEL) {
+      await this.tick(maxTicks - this.time);
+    }
+    if (this.char.level >= MAX_LEVEL) {
+      this.log.setTick(this.time);
+      await this.log.log('level', `已達最高等級 LV${MAX_LEVEL}，停止練功。`);
+    }
+    this.stats.ticks = Math.min(this.time, maxTicks);
     return this.finish();
   }
 
@@ -226,9 +280,10 @@ export class Engine {
     await this.log.log('system', `坐下休息…（HP ${this.char.hp}/${this.char.derived.maxHp} SP ${this.char.sp}/${this.char.derived.maxSp}）`);
 
     let rounds = 0;
-    while (rounds < remaining) {
-      const hpDone = s.hpLower <= 0 || this.hpPct() >= s.hpUpper;
-      const spDone = s.spLower <= 0 || this.spPct() >= s.spUpper;
+    const cap = Math.min(remaining, 2000); // 防呆：避免 upper 設超過 100% 造成無限坐
+    while (rounds < cap) {
+      const hpDone = s.hpLower <= 0 || this.char.hp >= this.char.derived.maxHp || this.hpPct() >= s.hpUpper;
+      const spDone = s.spLower <= 0 || this.char.sp >= this.char.derived.maxSp || this.spPct() >= s.spUpper;
       if (hpDone && spDone) break;
       this.char.hp = Math.min(this.char.derived.maxHp, this.char.hp + sitHp);
       this.char.sp = Math.min(this.char.derived.maxSp, this.char.sp + sitSp);

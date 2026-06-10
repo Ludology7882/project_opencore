@@ -150,6 +150,17 @@ main {
 #run:hover:not(:disabled) { background: var(--fg); }
 #run:disabled { opacity: 0.5; cursor: default; }
 
+.controls button.secondary {
+  background: var(--bg);
+  color: var(--fg);
+  font-weight: normal;
+  border: 1px solid var(--border);
+  padding: 6px 12px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.controls button.secondary:hover { border-color: var(--fg); }
+
 /* 視窗較窄時改上下排列 */
 @media (max-width: 760px) {
   main { flex-direction: column; }
